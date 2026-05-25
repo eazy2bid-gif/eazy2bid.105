@@ -1,0 +1,469 @@
+"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { Search, Gavel, Clock, ShieldCheck, Plus, Bell, User, Settings, Zap, Heart, CalendarDays, Trophy, FileText, MessageSquare, LayoutGrid, List, SlidersHorizontal, Share2, Minus, X, Upload, CreditCard, BarChart3, Package, Users, DollarSign, CheckCircle2, PauseCircle, Eye, Edit, Trash2, Download, Building2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+const brandLogo = "/logo.jpg";
+
+const startingLots = [
+  { id: 1024, title: "Rolex Submariner Date", subtitle: "126610LV Starbucks", category: "Watches", location: "Atlanta, GA", highBid: 18750, bidCount: 23, endsInSeconds: 165, image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80", description: "Verified luxury watch lot with box, papers, and inspection report.", status: "Live", reserve: 15000, seller: "EAZY2bid Seller" },
+  { id: 1025, title: "Jean-Michel Basquiat", subtitle: "Untitled, 1982 inspired piece", category: "Fine Art", location: "Roswell, GA", highBid: 62000, bidCount: 15, endsInSeconds: 452, image: "https://images.unsplash.com/photo-1578301978693-85fa9c0320b9?auto=format&fit=crop&w=900&q=80", description: "Fine art consignment with gallery-style presentation and buyer documentation.", status: "Live", reserve: 50000, seller: "North GA Estate" },
+  { id: 1026, title: "1967 Ford Mustang", subtitle: "Fastback", category: "Vehicles", location: "Cumming, GA", highBid: 34250, bidCount: 27, endsInSeconds: 910, image: "https://images.unsplash.com/photo-1584345604476-8ec5e12e42dd?auto=format&fit=crop&w=900&q=80", description: "Classic vehicle auction with clean title and preview appointment available.", status: "Live", reserve: 30000, seller: "Classic Auto Seller" },
+  { id: 1027, title: "Diamond Jewelry Collection", subtitle: "Estate rings and bracelets", category: "Jewelry", location: "Alpharetta, GA", highBid: 12800, bidCount: 18, endsInSeconds: 1280, image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=900&q=80", description: "Estate jewelry collection with appraisals and inspection photos.", status: "Pending", reserve: 10000, seller: "Estate Consignor" },
+];
+
+function money(value) {
+  return value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
+function timeLabel(totalSeconds) {
+  const safe = Math.max(0, totalSeconds);
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  return `${String(h).padStart(2, "0")} : ${String(m).padStart(2, "0")} : ${String(s).padStart(2, "0")}`;
+}
+
+const categoryCounts = { Watches: 45, "Fine Art": 32, Jewelry: 28, Coins: 19, Vehicles: 15, Collectibles: 26 };
+
+export default function AuctionBiddingPlatform() {
+  const [lots, setLots] = useState(startingLots);
+  const [selectedId, setSelectedId] = useState(1024);
+  const [query, setQuery] = useState("");
+  const [topQuery, setTopQuery] = useState("");
+  const [category, setCategory] = useState("All Categories");
+  const [location, setLocation] = useState("All Locations");
+  const [bidAmount, setBidAmount] = useState("19000");
+  const [maxBids, setMaxBids] = useState({ 1024: 19000 });
+  const [watchlist, setWatchlist] = useState([1024]);
+  const [viewMode, setViewMode] = useState("grid");
+  const [message, setMessage] = useState("You're verified to bid. Bid with confidence.");
+  const [mode, setMode] = useState("bidder");
+  const [adminTab, setAdminTab] = useState("Dashboard");
+  const [showSellForm, setShowSellForm] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showBidderRegistration, setShowBidderRegistration] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [editingLot, setEditingLot] = useState(null);
+  const [viewingImage, setViewingImage] = useState(null);
+  const [sellerItem, setSellerItem] = useState({ title: "", category: "", price: "", reserve: "", location: "", description: "" });
+  const [registeredBidders, setRegisteredBidders] = useState([
+    { id: 501, name: "John Doe", email: "john@example.com", phone: "770-555-0188", status: "Approved", deposit: 500, bidderLimit: 25000, registeredLots: [1024, 1026] },
+    { id: 502, name: "Sarah Buyer", email: "sarah@example.com", phone: "678-555-0199", status: "Pending", deposit: 0, bidderLimit: 10000, registeredLots: [1025] }
+  ]);
+  const [bidderForm, setBidderForm] = useState({ firstName: "", lastName: "", email: "", phone: "", address: "", city: "", state: "GA", zip: "", company: "", bidderLimit: "25000", agreeTerms: false, cardOnFile: false });
+
+  useEffect(() => {
+    const timer = setInterval(() => setLots((current) => current.map((lot) => ({ ...lot, endsInSeconds: lot.status === "Live" ? Math.max(0, lot.endsInSeconds - 1) : lot.endsInSeconds }))), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const selected = lots.find((lot) => lot.id === selectedId) || lots[0];
+  const categories = useMemo(() => ["All Categories", ...new Set(lots.map((lot) => lot.category))], [lots]);
+  const locations = useMemo(() => ["All Locations", ...new Set(lots.map((lot) => lot.location))], [lots]);
+  const filteredLots = lots.filter((lot) => {
+    const allQuery = `${query} ${topQuery}`.trim().toLowerCase();
+    const searchText = `${lot.title} ${lot.subtitle} ${lot.location} ${lot.category}`.toLowerCase();
+    return (!allQuery || searchText.includes(allQuery)) && (category === "All Categories" || lot.category === category) && (location === "All Locations" || lot.location === location);
+  });
+  const minBid = selected.highBid + Math.max(250, Math.ceil(selected.highBid * 0.013));
+  const displayBid = Number(String(bidAmount).replace(/[^0-9.]/g, "")) || minBid;
+  const totalBids = lots.reduce((sum, lot) => sum + lot.highBid, 0);
+  const liveLots = lots.filter((lot) => lot.status === "Live");
+  const soldEstimate = lots.reduce((sum, lot) => sum + (lot.status === "Sold" ? lot.highBid : 0), 0);
+  const commissionEstimate = Math.round(totalBids * 0.1);
+
+  const placeBid = (amount = displayBid) => {
+    if (selected.endsInSeconds <= 0 || selected.status !== "Live") return setMessage(`Lot #${selected.id} is not accepting bids.`);
+    if (!amount || amount < minBid) {
+      setMessage(`Minimum next bid is ${money(minBid)}.`);
+      setBidAmount(String(minBid));
+      return;
+    }
+
+    const currentMax = maxBids[selected.id] || 0;
+    const newMaxBid = Math.max(currentMax, amount);
+    const nextVisibleBid = Math.min(newMaxBid, minBid);
+
+    setMaxBids((current) => ({ ...current, [selected.id]: newMaxBid }));
+    setLots((current) => current.map((lot) => lot.id === selected.id ? {
+      ...lot,
+      highBid: Math.max(lot.highBid, nextVisibleBid),
+      bidCount: lot.bidCount + 1,
+      endsInSeconds: lot.endsInSeconds < 60 ? lot.endsInSeconds + 60 : lot.endsInSeconds
+    } : lot));
+    setBidAmount(String(newMaxBid + 250));
+    setMessage(`Your max bid of ${money(newMaxBid)} was saved for Lot #${selected.id}. System will auto-bid up to your limit.`);
+  };
+
+  const adjustBid = (delta) => setBidAmount(String(Math.max(minBid, (Number(String(bidAmount).replace(/[^0-9.]/g, "")) || minBid) + delta)));
+  const quickBid = (delta) => {
+    const amount = selected.highBid + delta;
+    setBidAmount(String(amount));
+    placeBid(amount);
+  };
+  const toggleWatch = (id) => setWatchlist((current) => current.includes(id) ? current.filter((lotId) => lotId !== id) : [...current, id]);
+  const updateLotStatus = (id, status) => {
+    setLots((current) => current.map((lot) => lot.id === id ? { ...lot, status } : lot));
+    setMessage(`Lot #${id} marked ${status}.`);
+  };
+  const deleteLot = (id) => {
+    setLots((current) => current.filter((lot) => lot.id !== id));
+    setSelectedId(lots.find((lot) => lot.id !== id)?.id || 0);
+    setMessage(`Lot #${id} deleted from seller admin.`);
+  };
+  const submitSellerItem = () => {
+    const nextId = Math.max(...lots.map((lot) => lot.id)) + 1;
+    const newLot = {
+      id: nextId,
+      title: sellerItem.title || "New Auction Item",
+      subtitle: sellerItem.description || "Seller submitted lot",
+      category: sellerItem.category || "Collectibles",
+      location: sellerItem.location || "Georgia",
+      highBid: Number(sellerItem.price) || 500,
+      reserve: Number(sellerItem.reserve) || Number(sellerItem.price) || 500,
+      bidCount: 0,
+      endsInSeconds: 1800,
+      image: "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?auto=format&fit=crop&w=900&q=80",
+      description: sellerItem.description || "New seller-submitted item pending final approval.",
+      status: "Pending",
+      seller: "Seller Admin"
+    };
+    setLots((current) => [newLot, ...current]);
+    setSelectedId(nextId);
+    setShowSellForm(false);
+    setSellerItem({ title: "", category: "", price: "", reserve: "", location: "", description: "" });
+    setMessage(`Lot #${nextId} added to pending seller inventory.`);
+  };
+
+  const submitBidderRegistration = () => {
+    const nextId = Math.max(...registeredBidders.map((bidder) => bidder.id)) + 1;
+    const newBidder = {
+      id: nextId,
+      name: `${bidderForm.firstName || "New"} ${bidderForm.lastName || "Bidder"}`,
+      email: bidderForm.email || "newbidder@example.com",
+      phone: bidderForm.phone || "",
+      status: bidderForm.agreeTerms ? "Approved" : "Pending",
+      deposit: bidderForm.cardOnFile ? 500 : 0,
+      bidderLimit: Number(bidderForm.bidderLimit) || 25000,
+      registeredLots: [selected.id]
+    };
+    setRegisteredBidders((current) => [newBidder, ...current]);
+    setShowBidderRegistration(false);
+    setMessage(`${newBidder.name} registered for Lot #${selected.id}. Status: ${newBidder.status}.`);
+    setBidderForm({ firstName: "", lastName: "", email: "", phone: "", address: "", city: "", state: "GA", zip: "", company: "", bidderLimit: "25000", agreeTerms: false, cardOnFile: false });
+  };
+
+  const StableLogo = React.memo(() => (
+    <div className="flex h-16 w-60 items-center justify-start overflow-hidden rounded-2xl bg-white p-1">
+      <img src={brandLogo} alt="EAZY2bid logo" className="h-full w-full object-contain" />
+    </div>
+  ));
+
+  const Header = React.memo(() => (
+    <header className="sticky top-0 z-30 border-b border-blue-100 bg-white/95 shadow-sm backdrop-blur">
+      <div className="mx-auto flex max-w-[1500px] items-center justify-between px-5 py-4">
+        <div className="flex items-center gap-8">
+          <StableLogo />
+          <nav className="hidden items-center gap-3 text-sm font-medium lg:flex">
+            <button onClick={() => setMode("bidder")} className={`rounded-xl px-4 py-2 ${mode === "bidder" ? "bg-blue-50 text-[#005FEF]" : "text-slate-700 hover:bg-blue-50"}`}>
+              Bidder Website
+            </button>
+            <button onClick={() => setMode("seller")} className={`rounded-xl px-4 py-2 ${mode === "seller" ? "bg-blue-50 text-[#005FEF]" : "text-slate-700 hover:bg-blue-50"}`}>
+              Seller Admin
+            </button>
+          </nav>
+        </div>
+        <div className="hidden items-center gap-5 md:flex">
+          <div className="relative">
+            <Search className="absolute right-4 top-3.5 h-5 w-5 text-[#0A1245]" />
+            <input value={topQuery} onChange={(e) => setTopQuery(e.target.value)} placeholder="Search lots, sellers..." className="h-12 w-80 rounded-xl border border-blue-100 bg-white px-4 pr-12 text-sm outline-none ring-[#18AEEF]/30 focus:ring-4" />
+          </div>
+          <button onClick={() => setMessage("Notifications opened: 3 new auction updates.")} className="relative rounded-full p-2 hover:bg-blue-50">
+            <Bell className="h-6 w-6" />
+            <span className="absolute -right-1 -top-1 rounded-full bg-[#005FEF] px-1.5 text-xs font-bold text-white">3</span>
+          </button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setShowBidderRegistration(true)} className="rounded-xl bg-[#005FEF] text-white hover:bg-[#111C95]">
+              Register to Bid
+            </Button>
+            <button onClick={() => setShowLogin(true)} className="flex items-center gap-3 rounded-2xl px-2 py-1 hover:bg-blue-50">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#005FEF] text-white">
+                <User />
+              </div>
+              <div>
+                <p className="font-bold">Lee Admin</p>
+                <p className="text-sm text-slate-500">Verified Seller</p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+  ));
+
+  const SellerAdmin = () => (
+    <main className="mx-auto grid max-w-[1500px] gap-6 px-5 py-6 lg:grid-cols-[260px_1fr]">
+      <aside className="space-y-3 rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
+        <h2 className="px-3 py-2 text-xl font-black text-[#005FEF]">Seller Admin</h2>
+        {[[BarChart3,"Dashboard"],[Package,"My Lots"],[Plus,"Create Lot"],[Users,"Bidders"],[FileText,"Invoices"],[DollarSign,"Payouts"],[Settings,"Settings"]].map(([Icon,label]) => (
+          <button key={label} onClick={() => { setAdminTab(label); if (label === "Create Lot") setShowSellForm(true); }} className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left font-semibold ${adminTab === label ? "bg-blue-50 text-[#005FEF]" : "text-slate-700 hover:bg-blue-50"}`}>
+            <Icon className="h-5 w-5" />{label}
+          </button>
+        ))}
+        <div className="mt-8 rounded-2xl bg-gradient-to-br from-[#111C95] to-[#005FEF] p-5 text-white">
+          <Building2 className="mb-3 h-8 w-8" />
+          <p className="font-black">EAZY2bid Seller Portal</p>
+          <p className="mt-2 text-sm text-blue-100">Manage consignments, bids, invoices, approvals and payouts.</p>
+        </div>
+      </aside>
+      <section className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold text-[#005FEF]">Seller Dashboard</p>
+            <h1 className="text-3xl font-black">Manage Your Auctions</h1>
+          </div>
+          <div className="flex gap-3">
+            <Button onClick={() => setShowSellForm(true)} className="rounded-xl bg-[#005FEF] text-white hover:bg-[#111C95]"><Plus className="mr-2 h-4 w-4" />New Lot</Button>
+            <Button onClick={() => setMessage("CSV export downloaded in production mode.")} className="rounded-xl border border-blue-100 bg-white text-[#0A1245] hover:bg-blue-50"><Download className="mr-2 h-4 w-4" />Export</Button>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-4">
+          <Stat icon={Package} label="Total Lots" value={lots.length} />
+          <Stat icon={Zap} label="Live Lots" value={liveLots.length} />
+          <Stat icon={Users} label="Registered Bidders" value={registeredBidders.length} />
+          <Stat icon={DollarSign} label="10% Commission" value={money(commissionEstimate)} />
+        </div>
+        {adminTab === "Bidders" && (
+          <Card className="rounded-3xl border-blue-100 bg-white shadow-sm">
+            <CardContent className="p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-black">Bidder List</h2>
+                  <p className="text-sm text-slate-500">Review approvals, deposits, limits, and registered lots.</p>
+                </div>
+                <Button onClick={() => setShowBidderRegistration(true)} className="rounded-xl bg-[#005FEF] text-white hover:bg-[#111C95]"><User className="mr-2 h-4 w-4" />Add Bidder</Button>
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-blue-100">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-blue-50 text-[#005FEF]"><tr><th className="p-4">Bidder</th><th className="p-4">Phone</th><th className="p-4">Status</th><th className="p-4">Deposit</th><th className="p-4">Bid Limit</th><th className="p-4">Registered Lots</th><th className="p-4">Actions</th></tr></thead>
+                  <tbody>{registeredBidders.map((bidder) => (
+                    <tr key={bidder.id} className="border-t border-blue-100">
+                      <td className="p-4"><p className="font-bold">#{bidder.id} {bidder.name}</p><p className="text-xs text-slate-500">{bidder.email}</p></td>
+                      <td className="p-4">{bidder.phone || "—"}</td>
+                      <td className="p-4"><span className={`rounded-full px-3 py-1 text-xs font-bold ${bidder.status === "Approved" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>{bidder.status}</span></td>
+                      <td className="p-4 font-bold">{money(bidder.deposit)}</td>
+                      <td className="p-4 font-black text-[#005FEF]">{money(bidder.bidderLimit)}</td>
+                      <td className="p-4">{bidder.registeredLots.map((lotId) => `#${lotId}`).join(", ")}</td>
+                      <td className="p-4"><div className="flex gap-2"><button onClick={() => { setRegisteredBidders((current) => current.map((item) => item.id === bidder.id ? { ...item, status: "Approved", deposit: item.deposit || 500 } : item)); setMessage(`${bidder.name} approved to bid.`); }} className="rounded-lg bg-green-50 p-2 text-green-700"><CheckCircle2 className="h-4 w-4" /></button><button onClick={() => { setRegisteredBidders((current) => current.map((item) => item.id === bidder.id ? { ...item, status: "Pending" } : item)); setMessage(`${bidder.name} moved to pending.`); }} className="rounded-lg bg-amber-50 p-2 text-amber-700"><PauseCircle className="h-4 w-4" /></button><button onClick={() => { setRegisteredBidders((current) => current.filter((item) => item.id !== bidder.id)); setMessage(`${bidder.name} removed from bidder list.`); }} className="rounded-lg bg-red-50 p-2 text-red-600"><Trash2 className="h-4 w-4" /></button></div></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+          <Card className="rounded-3xl border-blue-100 bg-white shadow-sm">
+            <CardContent className="p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <h2 className="text-xl font-black">Auction Inventory</h2>
+                <select className="rounded-xl border border-blue-100 px-3 py-2">
+                  <option>All Statuses</option>
+                  <option>Live</option>
+                  <option>Pending</option>
+                  <option>Sold</option>
+                </select>
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-blue-100">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-blue-50 text-[#005FEF]"><tr><th className="p-4">Lot</th><th className="p-4">Status</th><th className="p-4">High Bid</th><th className="p-4">Reserve</th><th className="p-4">Bids</th><th className="p-4">Max Bid</th><th className="p-4">Actions</th></tr></thead>
+                  <tbody>{lots.map((lot) => (
+                    <tr key={lot.id} className="border-t border-blue-100">
+                      <td className="p-4"><div className="flex items-center gap-3"><button onClick={() => setViewingImage(lot)} className="group relative h-12 w-12 overflow-hidden rounded-xl"><img src={lot.image} className="h-full w-full object-cover transition group-hover:scale-110" /><span className="absolute inset-0 grid place-items-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100"><Eye className="h-4 w-4" /></span></button><div><p className="font-bold">#{lot.id} {lot.title}</p><p className="text-xs text-slate-500">{lot.category} • {lot.location}</p></div></div></td>
+                      <td className="p-4"><span className={`rounded-full px-3 py-1 text-xs font-bold ${lot.status === "Live" ? "bg-green-50 text-green-700" : lot.status === "Pending" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-700"}`}>{lot.status}</span></td>
+                      <td className="p-4 font-black text-[#005FEF]">{money(lot.highBid)}</td>
+                      <td className="p-4">{money(lot.reserve || 0)}</td>
+                      <td className="p-4">{lot.bidCount}</td>
+                      <td className="p-4 font-black text-[#005FEF]">{maxBids[lot.id] ? money(maxBids[lot.id]) : "—"}</td>
+                      <td className="p-4"><div className="flex gap-2"><button onClick={() => { setSelectedId(lot.id); setMode("bidder"); }} className="rounded-lg bg-blue-50 p-2 text-[#005FEF]"><Eye className="h-4 w-4" /></button><button onClick={() => setEditingLot(lot)} className="rounded-lg bg-blue-50 p-2 text-[#005FEF]"><Edit className="h-4 w-4" /></button><button onClick={() => deleteLot(lot.id)} className="rounded-lg bg-red-50 p-2 text-red-600"><Trash2 className="h-4 w-4" /></button></div></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+          <div className="space-y-4">
+            <Card className="rounded-3xl border-blue-100 bg-white shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between"><h3 className="text-lg font-black">Registered Bidders</h3><button onClick={() => setShowBidderRegistration(true)} className="text-sm font-bold text-[#005FEF]">Add</button></div>
+                <div className="mt-4 space-y-3">{registeredBidders.slice(0, 3).map((bidder) => (
+                  <div key={bidder.id} className="rounded-2xl bg-blue-50 p-3"><div className="flex items-center justify-between"><p className="font-bold">{bidder.name}</p><span className={`rounded-full px-2 py-1 text-xs font-bold ${bidder.status === "Approved" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>{bidder.status}</span></div><p className="text-xs text-slate-500">{bidder.email}</p><p className="mt-1 text-xs font-bold text-[#005FEF]">Limit: {money(bidder.bidderLimit)} • Deposit: {money(bidder.deposit)}</p></div>
+                ))}</div>
+              </CardContent>
+            </Card>
+            <Card className="rounded-3xl border-blue-100 bg-white shadow-sm">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-black">Quick Controls</h3>
+                <div className="mt-4 space-y-3">
+                  <Button onClick={() => updateLotStatus(selected.id, "Live")} className="w-full justify-start rounded-xl bg-green-600 text-white hover:bg-green-700"><CheckCircle2 className="mr-2 h-4 w-4" />Approve / Go Live</Button>
+                  <Button onClick={() => updateLotStatus(selected.id, "Pending")} className="w-full justify-start rounded-xl bg-amber-500 text-white hover:bg-amber-600"><PauseCircle className="mr-2 h-4 w-4" />Pause Auction</Button>
+                  <Button onClick={() => updateLotStatus(selected.id, "Sold")} className="w-full justify-start rounded-xl bg-[#005FEF] text-white hover:bg-[#111C95]"><Trophy className="mr-2 h-4 w-4" />Mark Sold</Button>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="rounded-3xl border-blue-100 bg-white shadow-sm">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-black">Selected Lot</h3>
+                <button onClick={() => setViewingImage(selected)} className="group relative mt-4 h-40 w-full overflow-hidden rounded-2xl"><img src={selected.image} className="h-full w-full object-cover transition group-hover:scale-105" /><span className="absolute inset-0 grid place-items-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100"><Eye className="h-8 w-8" /></span></button>
+                <p className="mt-3 font-black">#{selected.id} {selected.title}</p>
+                <p className="text-sm text-slate-500">{selected.description}</p>
+                <div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-xl bg-blue-50 p-3"><p className="text-xs text-slate-500">Current Bid</p><p className="font-black text-[#005FEF]">{money(selected.highBid)}</p></div><div className="rounded-xl bg-blue-50 p-3"><p className="text-xs text-slate-500">Bidder Max Bid</p><p className="font-black text-[#005FEF]">{maxBids[selected.id] ? money(maxBids[selected.id]) : "No max bid"}</p></div></div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+
+  function Stat({ icon: Icon, label, value }) {
+    return (
+      <Card className="rounded-3xl border-blue-100 bg-white shadow-sm">
+        <CardContent className="flex items-center gap-4 p-5">
+          <div className="rounded-2xl bg-blue-50 p-3 text-[#005FEF]"><Icon className="h-7 w-7" /></div>
+          <div><p className="text-sm text-slate-500">{label}</p><p className="text-2xl font-black">{value}</p></div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const BidderSide = () => (
+    <main className="mx-auto grid max-w-[1500px] gap-6 px-5 py-6 lg:grid-cols-[240px_1fr_350px]">
+      <aside className="hidden space-y-4 rounded-r-3xl border-r border-blue-100 bg-white p-4 shadow-sm lg:block">
+        {[[Zap,"Live Auctions",""],[CalendarDays,"Upcoming Auctions",""],[Clock,"Past Auctions",""],[Heart,"Watchlist",String(watchlist.length)],[Gavel,"My Bids",""],[Trophy,"Won Items",""],[FileText,"Invoices",""],[MessageSquare,"Messages","2"],[Settings,"Account Settings",""]].map(([Icon,label,badge], index) => (
+          <button key={label} onClick={() => setMessage(`${label} opened.`)} className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium ${index === 0 ? "bg-blue-50 text-[#005FEF] ring-1 ring-blue-100" : "text-slate-700 hover:bg-blue-50"}`}>
+            <span className="flex items-center gap-3"><Icon className="h-5 w-5" />{label}</span>
+            {badge && <span className="rounded-full bg-[#005FEF] px-2 py-0.5 text-xs text-white">{badge}</span>}
+          </button>
+        ))}
+        <div className="mt-20 rounded-2xl border border-[#005FEF] bg-gradient-to-br from-white to-blue-50 p-5">
+          <h3 className="text-xl font-black text-[#005FEF]">Want to sell?</h3>
+          <p className="mt-3 text-sm leading-6 text-slate-600">List your items and reach thousands of verified bidders.</p>
+          <Button onClick={() => setMode("seller")} className="mt-5 rounded-xl bg-[#005FEF] text-white hover:bg-[#111C95]">Open Seller Admin</Button>
+          <Gavel className="mt-6 h-20 w-20 text-[#005FEF]" />
+        </div>
+      </aside>
+      <section className="space-y-6">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-3xl bg-gradient-to-br from-[#111C95] via-[#005FEF] to-[#24D3F8] p-7 text-white shadow-2xl shadow-blue-900/20">
+          <div className="grid items-center gap-6 md:grid-cols-[1fr_180px]">
+            <div>
+              <h2 className="text-2xl font-black">Live Auction Highlights</h2>
+              <div className="mt-7 grid gap-5 sm:grid-cols-4">
+                <div><p className="text-3xl font-black">{liveLots.length}</p><p className="mt-1 text-sm text-blue-100">• Live Auctions</p></div>
+                <div><p className="text-3xl font-black">{lots.length}</p><p className="mt-1 text-sm text-blue-100">• Lots Offered</p></div>
+                <div><p className="text-3xl font-black">1,386</p><p className="mt-1 text-sm text-blue-100">• Active Bidders</p></div>
+                <div><p className="text-3xl font-black">{money(totalBids)}</p><p className="mt-1 text-sm text-blue-100">• Total Bids Today</p></div>
+              </div>
+            </div>
+            <Gavel className="hidden h-36 w-36 rotate-[-20deg] text-cyan-200 md:block" />
+          </div>
+        </motion.div>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="flex items-center gap-2 text-xl font-black"><Zap className="h-5 w-5 text-[#005FEF]" /> Live Auctions</h2>
+          <div className="flex items-center gap-3"><button onClick={() => setMessage("Showing all active auctions.")} className="font-semibold text-[#005FEF]">View All Auctions →</button><button onClick={() => setViewMode("grid")} className={`rounded-xl border p-3 ${viewMode === "grid" ? "border-[#005FEF] bg-blue-50 text-[#005FEF]" : "border-blue-100 bg-white"}`}><LayoutGrid className="h-5 w-5" /></button><button onClick={() => setViewMode("list")} className={`rounded-xl border p-3 ${viewMode === "list" ? "border-[#005FEF] bg-blue-50 text-[#005FEF]" : "border-blue-100 bg-white"}`}><List className="h-5 w-5" /></button></div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-[1fr_205px_205px_110px]">
+          <div className="relative"><Search className="absolute left-4 top-3.5 h-5 w-5 text-slate-500" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search lots..." className="h-12 w-full rounded-xl border border-blue-100 bg-white pl-12 pr-4 outline-none ring-[#18AEEF]/30 focus:ring-4" /></div>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className="h-12 rounded-xl border border-blue-100 bg-white px-4 outline-none">{categories.map((item) => <option key={item}>{item}</option>)}</select>
+          <select value={location} onChange={(e) => setLocation(e.target.value)} className="h-12 rounded-xl border border-blue-100 bg-white px-4 outline-none">{locations.map((item) => <option key={item}>{item}</option>)}</select>
+          <Button onClick={() => setShowFilters(true)} className="h-12 rounded-xl border border-blue-100 bg-white text-[#0A1245] hover:bg-blue-50"><SlidersHorizontal className="mr-2 h-4 w-4" />Filters</Button>
+        </div>
+        <div className={viewMode === "grid" ? "grid gap-5 md:grid-cols-3" : "grid gap-4"}>
+          {filteredLots.map((lot) => (
+            <motion.div key={lot.id} whileHover={{ y: -3 }} onClick={() => { setSelectedId(lot.id); setBidAmount(String(lot.highBid + 250)); }} className={`cursor-pointer overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-xl ${selected.id === lot.id ? "border-[#005FEF] ring-2 ring-blue-100" : "border-blue-100"}`}>
+              <div className="relative h-52 bg-slate-100">
+                <button onClick={(e) => { e.stopPropagation(); setViewingImage(lot); }} className="h-full w-full"><img src={lot.image} alt="" className="h-full w-full object-cover transition hover:scale-105" /></button>
+                <span className={`absolute left-4 top-4 rounded-md px-3 py-1 text-xs font-bold text-white ${lot.status === "Live" ? "bg-[#005FEF]" : "bg-amber-500"}`}>{lot.status}</span>
+                <button onClick={(e) => { e.stopPropagation(); toggleWatch(lot.id); }} className="absolute right-4 top-4 rounded-full bg-black/20 p-2 text-white backdrop-blur hover:bg-[#005FEF]"><Heart className={`h-5 w-5 ${watchlist.includes(lot.id) ? "fill-white" : ""}`} /></button>
+                <span className="absolute bottom-3 left-4 rounded-md bg-white px-3 py-1 text-xs font-bold text-[#005FEF]"><Clock className="mr-1 inline h-3 w-3" />{timeLabel(lot.endsInSeconds)} Ending Soon</span>
+              </div>
+              <div className="p-4"><h3 className="text-lg font-black">{lot.title}</h3><p className="text-slate-700">{lot.subtitle}</p><p className="mt-3 text-sm font-medium text-[#005FEF]">{lot.category}</p><div className="mt-4 flex items-end justify-between"><div><p className="text-xs text-slate-500">Current Bid</p><p className="text-2xl font-black text-[#005FEF]">{money(lot.highBid)}</p></div><p className="text-sm text-slate-600">Bids: {lot.bidCount}</p></div><Button onClick={(e) => { e.stopPropagation(); setSelectedId(lot.id); setBidAmount(String(lot.highBid + 250)); setMessage(`Lot #${lot.id} selected. Confirm your bid on the right.`); }} className="mt-4 w-full rounded-xl bg-[#005FEF] text-white hover:bg-[#111C95]">Place Bid</Button></div>
+            </motion.div>
+          ))}
+        </div>
+        <div>
+          <div className="mb-4 flex items-center justify-between"><h3 className="text-xl font-black">Categories</h3><button onClick={() => setCategory("All Categories")} className="font-semibold text-[#005FEF]">View All Categories →</button></div>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-6">{Object.entries(categoryCounts).map(([item,count]) => (
+            <button key={item} onClick={() => setCategory(item)} className="rounded-2xl border border-blue-100 bg-white p-5 text-center shadow-sm hover:border-[#005FEF] hover:bg-blue-50"><Gavel className="mx-auto mb-2 h-7 w-7 text-[#005FEF]" /><p className="font-bold">{item}</p><p className="text-xs text-slate-500">{count} Lots</p></button>
+          ))}</div>
+        </div>
+      </section>
+      <aside className="space-y-6"><div className="grid grid-cols-2 gap-3"><Button onClick={() => setShowBidderRegistration(true)} className="h-14 rounded-xl bg-[#005FEF] text-base font-bold text-white hover:bg-[#111C95]"><User className="mr-2 h-5 w-5" />Register</Button><Button onClick={() => setMode("seller")} className="h-14 rounded-xl bg-[#111C95] text-base font-bold text-white hover:bg-[#005FEF]"><Plus className="mr-2 h-5 w-5" />Admin</Button></div><Card className="overflow-hidden rounded-3xl border-blue-100 bg-white text-[#0A1245] shadow-xl shadow-blue-100/70"><CardContent className="p-6"><div className="flex items-start justify-between"><p className="text-sm font-medium text-slate-500">LOT #{selected.id}</p><div className="flex gap-3"><Share2 onClick={() => setMessage(`Share link copied for Lot #${selected.id}.`)} className="h-5 w-5 cursor-pointer" /><Heart onClick={() => toggleWatch(selected.id)} className={`h-5 w-5 cursor-pointer ${watchlist.includes(selected.id) ? "fill-[#005FEF] text-[#005FEF]" : ""}`} /></div></div><div className="mt-5 flex gap-4"><button onClick={() => setViewingImage(selected)} className="group relative h-24 w-24 overflow-hidden rounded-xl"><img src={selected.image} alt="" className="h-full w-full object-cover transition group-hover:scale-110" /><span className="absolute inset-0 grid place-items-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100"><Eye className="h-5 w-5" /></span></button><div><h3 className="text-lg font-black">{selected.title}</h3><p>{selected.subtitle}</p><p className="mt-3 text-sm font-bold text-[#005FEF]">{selected.category}</p></div></div><div className="mt-7 text-center"><p className="text-sm text-slate-500">Auction Ends In</p><p className="mt-2 text-4xl font-black tracking-widest text-[#005FEF]">{timeLabel(selected.endsInSeconds)}</p><p className="mt-2 text-sm font-medium text-[#005FEF]">• Ending Soon</p></div><div className="my-6 border-t border-blue-100" /><div className="flex items-end justify-between"><div><p className="text-sm text-slate-500">Current Bid</p><p className="text-3xl font-black text-[#005FEF]">{money(selected.highBid)}</p></div><p className="text-sm text-slate-600">{selected.bidCount} Bids</p></div><div className="mt-6"><label className="text-sm font-medium text-slate-600">Your Maximum Bid</label><div className="mt-2 flex h-12 overflow-hidden rounded-xl border border-blue-100"><span className="flex items-center px-4 text-lg">$</span><input value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} className="min-w-0 flex-1 outline-none" /><button onClick={() => adjustBid(-250)} className="border-l border-blue-100 px-4 hover:bg-blue-50"><Minus className="h-4 w-4" /></button><button onClick={() => adjustBid(250)} className="border-l border-blue-100 px-4 hover:bg-blue-50"><Plus className="h-4 w-4" /></button></div><p className="mt-2 text-xs text-slate-500">Minimum Next Bid: {money(minBid)}</p></div><Button onClick={() => placeBid()} className="mt-5 h-14 w-full rounded-xl bg-[#005FEF] text-base font-bold text-white hover:bg-[#111C95]"><Gavel className="mr-2 h-5 w-5" />Place Bid {money(displayBid)}</Button><div className="mt-4 overflow-hidden rounded-xl border border-[#005FEF]"><p className="border-b border-blue-100 py-3 text-center font-bold text-[#005FEF]">Quick Bid</p><div className="grid grid-cols-3"><button onClick={() => quickBid(500)} className="py-3 font-semibold text-[#005FEF] hover:bg-blue-50">+$500</button><button onClick={() => quickBid(1000)} className="border-x border-blue-100 py-3 font-semibold text-[#005FEF] hover:bg-blue-50">+$1,000</button><button onClick={() => quickBid(2500)} className="py-3 font-semibold text-[#005FEF] hover:bg-blue-50">+$2,500</button></div></div></CardContent></Card><div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm"><div className="flex items-center gap-4"><ShieldCheck className="h-10 w-10 text-[#005FEF]" /><div><p className="font-black text-[#005FEF]">{message}</p><p className="text-sm text-slate-500">Live demo mode — bids update instantly.</p></div></div></div></aside></main>
+  );
+
+  return (
+    <div className="min-h-screen bg-[#F7FBFF] text-[#0A1245]">
+      <Header />
+      {mode === "seller" ? <SellerAdmin /> : <BidderSide />}
+      {showLogin && (
+        <Modal title="Seller / Bidder Login" onClose={() => setShowLogin(false)}>
+          <p className="mt-2 text-sm text-slate-600">Demo login panel for your auction software.</p>
+          <input className="mt-5 h-12 w-full rounded-xl border border-blue-100 px-4 outline-none" placeholder="Email address" />
+          <input className="mt-3 h-12 w-full rounded-xl border border-blue-100 px-4 outline-none" placeholder="Password" type="password" />
+          <Button onClick={() => { setShowLogin(false); setMessage("Logged in as verified seller admin."); }} className="mt-5 h-12 w-full rounded-xl bg-[#005FEF] text-white hover:bg-[#111C95]"><User className="mr-2 h-4 w-4" />Login</Button>
+        </Modal>
+      )}
+      {showSellForm && (
+        <Modal title="Create Seller Lot" onClose={() => setShowSellForm(false)}>
+          <p className="mt-2 text-sm text-slate-600">Add an auction item to seller admin inventory.</p>
+          <label className="mt-5 block cursor-pointer rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-5 text-center hover:bg-blue-100"><Upload className="mx-auto h-8 w-8 text-[#005FEF]" /><p className="mt-2 text-sm font-semibold text-[#005FEF]">Upload item photos</p><p className="mt-1 text-xs text-slate-500">Photo preview enabled in production with image storage.</p><input type="file" accept="image/*" className="hidden" onChange={() => setMessage("Image selected. Production version will upload and preview this photo.")} /></label>
+          <div className="mt-5 grid gap-3 md:grid-cols-2"><input value={sellerItem.title} onChange={(e) => setSellerItem({ ...sellerItem, title: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="Item title" /><input value={sellerItem.category} onChange={(e) => setSellerItem({ ...sellerItem, category: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="Category" /><input value={sellerItem.price} onChange={(e) => setSellerItem({ ...sellerItem, price: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="Starting bid" /><input value={sellerItem.reserve} onChange={(e) => setSellerItem({ ...sellerItem, reserve: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="Reserve price" /><input value={sellerItem.location} onChange={(e) => setSellerItem({ ...sellerItem, location: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none md:col-span-2" placeholder="Location" /></div>
+          <textarea value={sellerItem.description} onChange={(e) => setSellerItem({ ...sellerItem, description: e.target.value })} className="mt-3 h-24 w-full rounded-xl border border-blue-100 p-4 outline-none" placeholder="Description" />
+          <Button onClick={submitSellerItem} className="mt-5 h-12 w-full rounded-xl bg-[#005FEF] text-white hover:bg-[#111C95]">Submit Lot for Approval</Button>
+        </Modal>
+      )}
+      {showBidderRegistration && (
+        <Modal title="Bidder Registration" onClose={() => setShowBidderRegistration(false)}>
+          <p className="mt-2 text-sm text-slate-600">Register and verify a bidder for online bidding.</p>
+          <div className="mt-5 grid gap-3 md:grid-cols-2"><input value={bidderForm.firstName} onChange={(e) => setBidderForm({ ...bidderForm, firstName: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="First name" /><input value={bidderForm.lastName} onChange={(e) => setBidderForm({ ...bidderForm, lastName: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="Last name" /><input value={bidderForm.email} onChange={(e) => setBidderForm({ ...bidderForm, email: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="Email" /><input value={bidderForm.phone} onChange={(e) => setBidderForm({ ...bidderForm, phone: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="Phone" /><input value={bidderForm.address} onChange={(e) => setBidderForm({ ...bidderForm, address: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none md:col-span-2" placeholder="Street address" /><input value={bidderForm.city} onChange={(e) => setBidderForm({ ...bidderForm, city: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="City" /><div className="grid grid-cols-[80px_1fr] gap-3"><input value={bidderForm.state} onChange={(e) => setBidderForm({ ...bidderForm, state: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="State" /><input value={bidderForm.zip} onChange={(e) => setBidderForm({ ...bidderForm, zip: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="ZIP" /></div><input value={bidderForm.company} onChange={(e) => setBidderForm({ ...bidderForm, company: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="Company optional" /><input value={bidderForm.bidderLimit} onChange={(e) => setBidderForm({ ...bidderForm, bidderLimit: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="Requested bidder limit" /></div>
+          <div className="mt-4 space-y-3 rounded-2xl bg-blue-50 p-4"><label className="flex items-center gap-3 text-sm font-semibold"><input type="checkbox" checked={bidderForm.cardOnFile} onChange={(e) => setBidderForm({ ...bidderForm, cardOnFile: e.target.checked })} /> Add card/deposit on file</label><label className="flex items-center gap-3 text-sm font-semibold"><input type="checkbox" checked={bidderForm.agreeTerms} onChange={(e) => setBidderForm({ ...bidderForm, agreeTerms: e.target.checked })} /> Agree to bidder terms, buyer premium, and payment rules</label></div>
+          <Button onClick={submitBidderRegistration} className="mt-5 h-12 w-full rounded-xl bg-[#005FEF] text-white hover:bg-[#111C95]"><ShieldCheck className="mr-2 h-5 w-5" />Submit Bidder Registration</Button>
+        </Modal>
+      )}
+      {showFilters && (
+        <Modal title="Advanced Filters" onClose={() => setShowFilters(false)}>
+          <div className="mt-5 space-y-3"><Button onClick={() => { setCategory("Watches"); setShowFilters(false); }} className="w-full justify-start rounded-xl bg-blue-50 text-[#005FEF] hover:bg-blue-100">Luxury Watches</Button><Button onClick={() => { setCategory("Vehicles"); setShowFilters(false); }} className="w-full justify-start rounded-xl bg-blue-50 text-[#005FEF] hover:bg-blue-100">Vehicles</Button><Button onClick={() => { setCategory("All Categories"); setLocation("All Locations"); setQuery(""); setTopQuery(""); setShowFilters(false); }} className="w-full justify-start rounded-xl bg-[#005FEF] text-white hover:bg-[#111C95]">Clear All Filters</Button></div>
+        </Modal>
+      )}
+      {editingLot && (
+        <Modal title={`Edit Lot #${editingLot.id}`} onClose={() => setEditingLot(null)}>
+          <div className="mt-5 grid gap-3"><input defaultValue={editingLot.title} onChange={(e) => setEditingLot({ ...editingLot, title: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" /><input defaultValue={editingLot.category} onChange={(e) => setEditingLot({ ...editingLot, category: e.target.value })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" /><input defaultValue={editingLot.reserve} onChange={(e) => setEditingLot({ ...editingLot, reserve: Number(e.target.value) })} className="h-12 rounded-xl border border-blue-100 px-4 outline-none" placeholder="Reserve" /><textarea defaultValue={editingLot.description} onChange={(e) => setEditingLot({ ...editingLot, description: e.target.value })} className="h-24 rounded-xl border border-blue-100 p-4 outline-none" /></div>
+          <Button onClick={() => { setLots((current) => current.map((lot) => lot.id === editingLot.id ? editingLot : lot)); setEditingLot(null); setMessage(`Lot #${editingLot.id} updated.`); }} className="mt-5 h-12 w-full rounded-xl bg-[#005FEF] text-white hover:bg-[#111C95]">Save Changes</Button>
+        </Modal>
+      )}
+      {viewingImage && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setViewingImage(null)}>
+          <div className="w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between text-white"><div><p className="text-sm opacity-80">Lot #{viewingImage.id}</p><h2 className="text-2xl font-black">{viewingImage.title}</h2></div><button onClick={() => setViewingImage(null)} className="rounded-full bg-white/10 p-3 hover:bg-white/20"><X /></button></div>
+            <img src={viewingImage.image} alt={viewingImage.title} className="max-h-[78vh] w-full rounded-3xl object-contain shadow-2xl" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Modal({ title, children, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#0A1245]/40 p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-3xl bg-white p-6 shadow-2xl">
+        <div className="flex items-center justify-between"><h2 className="text-2xl font-black text-[#005FEF]">{title}</h2><button onClick={onClose}><X /></button></div>
+        {children}
+      </div>
+    </div>
+  );
+}
